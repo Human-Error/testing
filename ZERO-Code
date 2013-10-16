@@ -1,0 +1,352 @@
+//////////////////////////////////////////////////////////////////////////////////////////////
+//             -----        ||----          ||---           /---\                           //
+//               //         ||              ||   |         ||   ||                          //
+//              //          ||----          ||---          ||   ||                          //
+//             //           ||              || \\          ||   ||                          //
+//            -----         ||----          ||  \\          \---/                           //
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//still have to figure out the strange bug which causes the sphere to occasionally not stop
+//...rotating
+
+#define ST_Run_Forest_Run       0
+#define ST_Pickup_Laser_1       1
+#define ST_Pickup_Laser_1_Red   2
+#define ST_Pickup_Laser_2       3
+#define ST_Pickup_Laser_2_Red   4
+#define ST_Aim                  5
+#define ST_Charge               6
+
+#define GAINS 0.5f
+
+#define SPH_RED   0
+#define SPH_BLUE  1
+
+
+
+int State;
+int Time;
+int MyColor;
+
+void init(){
+	DEBUG(("I am the colorful sphere!\n"));
+	State = ST_Run_Forest_Run;
+	Time = 0;
+	MyColor = SPH_BLUE;
+}
+
+
+
+
+bool isClose(float target[]) {
+ ZRState myState;
+ api.getMyZRState(myState);
+ float mypos[3];
+ mypos[0] = myState[0];
+ mypos[1] = myState[1];
+ mypos[2] = myState[2];
+ float displacement[3];
+ float distance;
+ mathVecSubtract(displacement, target, mypos, 3);
+ distance = mathVecMagnitude(displacement, 3);
+ if(distance <= 0.025){
+	//api.setPosGains(0.258f*GAINS,0.0086f*GAINS,1.935f);
+  return true;
+ } else {
+	DEBUG(("Not Within Range... Distance = %f\n", distance));
+  return false;
+ }
+}
+
+void loop(){
+	ZRState myState, otherState;
+	api.getMyZRState(myState);
+	api.getOtherZRState(otherState);
+	Time++;
+	float FirstThrustRed[3];
+	float FirstThrustBlue[3];
+	float EnemyLaser[3] = {0.50, 0.65, 0.0};
+	float MyLaser[3] = {-0.50, 0.65, 0.0};
+	float FakePos[2] = {1.0, 0.65};
+	float spin[3] = {0.0, 0.0, 0.4};
+	float spin2[3] = {0.0, 0.0, -0.4};
+	float farOut[2] = {-0.5, 90.9};
+	float zeroVel[3] = {0.000, 0.000, 0.000};
+	float norm[3];
+	float norm2[3];
+	float norm3[3];
+	float pointat[3];
+	float pointat2[3];
+	float pointat3[3];
+	float pointat4[3];
+	float pointat5[3];
+	float dotproduct, angle;
+	float myatt[3];
+	
+	
+	
+	myatt[0] = myState[6];
+	myatt[1] = myState[7];
+	myatt[2] = myState[8];
+		
+	
+	mathVecSubtract(FirstThrustBlue, MyLaser, myState, 3);
+	mathVecSubtract(FirstThrustRed, EnemyLaser, myState, 3);	
+	
+	
+	game.getCometState(0, norm);
+	game.predictCometState(2, norm, norm2);
+	game.predictCometState(5, norm, norm3); 
+	mathVecSubtract(pointat, norm2, myState, 3);
+	mathVecNormalize(pointat, 3);
+	
+	
+	
+	
+	
+	
+	///////////////////////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////////////////////////////////
+	
+	switch(State){
+	
+		case ST_Run_Forest_Run:
+			if (myState[0] > 0.0){
+				DEBUG(("I am blue\n"));
+				//if(){
+				//}
+					
+				api.setVelocityTarget(FirstThrustBlue);
+				State = ST_Pickup_Laser_2;
+			}
+			if (myState[0] < 0.0){
+				DEBUG(("I am Red\n"));
+				api.setVelocityTarget(FirstThrustRed);
+				State = ST_Pickup_Laser_2_Red;
+			}
+			
+		break;
+		
+////////////////////////////////////////////////////////////////////////////////////////////		
+		
+		case ST_Pickup_Laser_1:
+			if (isClose(EnemyLaser) == false){
+				api.setAttRateTarget(zeroVel);
+				api.setPositionTarget(EnemyLaser);
+				DEBUG(("Still not within range to pickup the las\n"));
+				
+				if(game.wasCollisionActive()){
+					api.setAttRateTarget(zeroVel);
+					DEBUG(("Activating Contingency\n"));
+					State = ST_Aim;
+				}
+			}
+				 
+			
+			else{
+				DEBUG(("Reached next stage\n"));
+				DEBUG(("Time is %i\n", Time));
+				api.setAttRateTarget(spin2);
+				api.setPositionTarget(EnemyLaser);
+				
+				if(game.wasCollisionActive()){
+					api.setAttitudeTarget(pointat);
+					DEBUG(("Activating Contingency\n"));
+					State = ST_Aim;
+				}
+				
+			}
+			 if(game.haveItem(0, 0) || game.haveItem(1, 0)){
+				 //api.setAttRateTarget(zeroVel);
+				api.setAttitudeTarget(pointat);
+				api.setPositionTarget(MyLaser);
+				State = ST_Aim;
+			
+			}
+			if (Time > 88){
+				DEBUG(("Pew Pew remaining %i\n", game.laserShotsRemaining()));
+				State = ST_Aim;
+			}
+		
+		break;
+
+////////////////////////////////////////////////////////////////////////////////////////////
+		
+		case ST_Pickup_Laser_1_Red:
+		DEBUG(("now going to pickup the second laser\n"));
+			
+			if(isClose(MyLaser) == false){
+				api.setPositionTarget(MyLaser);
+				api.setAttRateTarget(zeroVel);
+					
+				DEBUG(("Still closing in %f\n", myState[0]));
+			}
+			
+			else{
+				api.setPositionTarget(MyLaser);
+				api.setAttRateTarget(spin);
+				DEBUG(("Spinning to pickup the second laser\n"));
+				
+				if(game.wasCollisionActive()){
+					DEBUG(("Activating Contingency\n"));
+					State = ST_Aim;
+				}
+			}
+			if(game.haveItem(0, 1) || game.haveItem(1, 1)){
+				api.setPositionTarget(EnemyLaser);
+				api.setAttRateTarget(zeroVel);
+				State = ST_Aim;
+			}
+		
+		break;
+		
+////////////////////////////////////////////////////////////////////////////////////////////		
+		
+		case ST_Pickup_Laser_2:
+		
+			
+		if(isClose(MyLaser) == false){
+				api.setAttRateTarget(zeroVel);
+				api.setPositionTarget(MyLaser);
+				DEBUG(("Still closing in %f\n", myState[0]));
+		}
+		if(isClose(MyLaser)){
+			api.setPositionTarget(MyLaser);
+			api.setAttRateTarget(spin);
+			DEBUG(("Spinning to pickup the second laser\n"));
+			
+			if(game.wasCollisionActive()){
+				DEBUG(("Activating Contingency\n"));
+				api.setAttRateTarget(zeroVel);
+				State = ST_Pickup_Laser_1;
+				}
+			}
+		if(game.haveItem(0, 1) || game.haveItem(1, 1)){
+			api.setPositionTarget(EnemyLaser);
+			api.setAttRateTarget(zeroVel);
+			State = ST_Pickup_Laser_1;
+		}
+		
+		break;
+		
+////////////////////////////////////////////////////////////////////////////////////////////		
+		
+		case ST_Pickup_Laser_2_Red:
+		
+			MyColor = SPH_RED;	
+			
+		
+			if (isClose(EnemyLaser) == false){
+				api.setAttRateTarget(zeroVel);
+				api.setPositionTarget(EnemyLaser);
+				DEBUG(("Still not within range to pickup the laser\n"));
+				 
+			}
+			else{
+				DEBUG(("Reached next stage\n"));
+				DEBUG(("Time is %i\n", Time));
+			
+				api.setAttRateTarget(spin);
+				api.setPositionTarget(EnemyLaser);
+				
+				if(game.wasCollisionActive()){
+					api.setAttRateTarget(zeroVel);
+					DEBUG(("Activating Contingency\n"));
+					State = ST_Pickup_Laser_1_Red;
+				}
+			}
+			 if(game.haveItem(0, 0) || game.haveItem(1, 0)){
+				api.setAttRateTarget(zeroVel);
+				//api.setPositionTarget(MyLaser);
+				State = ST_Pickup_Laser_1_Red;
+			
+			}
+		break;
+		
+////////////////////////////////////////////////////////////////////////////////////////////
+		
+		
+////////////////////////////////////////////////////////////////////////////////////////////		
+		case ST_Aim:
+			
+		if(Time < 85){
+			DEBUG(("Do Nothing"));
+			
+			if(MyColor == SPH_BLUE){
+				api.setAttitudeTarget(pointat);
+				float EnemyLaserWait[2] = {0.55, 0.60};
+				api.setPositionTarget(EnemyLaser);
+			}
+			else{
+				api.setAttitudeTarget(pointat);
+				float MyLaserWait[2] = {-0.55, 0.60};
+				api.setPositionTarget(MyLaser);
+			}
+		}
+		
+		else{
+		  DEBUG(("Pew Pew remaining %i\n", game.laserShotsRemaining()));
+			DEBUG(("ST_AIM in control\n"));
+			
+			dotproduct = mathVecInner(pointat, myatt, 3);
+			angle = RAD2DEG*acosf(dotproduct/mathVecMagnitude(pointat, 3));
+			DEBUG(("The sphere is currently pointing within %f degrees\n", angle));
+			
+			api.setAttitudeTarget(pointat);
+		
+			if (myState[0] > -0.2 && Time < 92){
+				float home[2] = {0.60, 0.5};
+				api.setPosGains(0.258f*GAINS,0.0086f*GAINS,1.935f);
+				api.setPositionTarget(home);
+			}
+			if (myState[0] < -0.2 && Time < 92){
+				float homeRed[2] = {-0.60, 0.5};
+				api.setPosGains(0.258f*GAINS,0.0086f*GAINS,1.935f);
+				api.setPositionTarget(homeRed);
+			}
+			
+				if(angle < 8.0 && Time > 90){
+					float Glide[3] = {0.0, -0.015, 0.0};
+					api.setVelocityTarget(Glide);
+					game.shootLaser();
+				}
+			if (game.laserShotsRemaining() == 0){
+				//State = ST_Charge;
+				DEBUG(("Changing to Charge\n"));
+			}
+	}
+		break;
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+		
+		case ST_Charge:
+		
+		float RedBase[2] = {-0.20, -0.65};
+		float BlueBase[2] = {0.20, -0.65};
+		
+		if(MyColor == SPH_BLUE){
+			api.setPositionTarget(RedBase);
+		}
+		if(MyColor == SPH_RED){
+			api.setPositionTarget(BlueBase);
+		}
+		
+		
+		
+		break;
+		
+////////////////////////////////////////////////////////////////////////////////////////////		
+		
+		
+	}
+	
+
+}
+
+		
+		
+		
+		
+	
+
